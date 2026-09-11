@@ -1,85 +1,89 @@
-; La idea: 'A' es 0x41 y 'a' es 0x61. Si los ves en binario:
+; Letter Swap: toggle the case of every letter in a string.
+; 'A' (0x41) and 'a' (0x61) differ by exactly ONE bit: bit 5 (0x20).
 ;   'A' = 0100 0001
 ;   'a' = 0110 0001
-; Solo cambia UN bit, el bit 5 (0x20). Es literal el unico bit
-; que diferencia mayuscula de minuscula en TODAS las letras.
-; Entonces en vez de sumar 0x20 para un lado y restar 0x20 para
-; el otro (dos instrucciones, dos casos), con un solo
-; "xor al, 0x20" prendes/apagas ese bit y ya, te cambia el caso
-; sin importar si venia de mayuscula o minuscula. Un XOR hace
-; el trabajo de add Y sub al mismo tiempo.
+; So we can use XOR with 0x20 to flip that bit — it toggles between
+; uppercase and lowercase in a single instruction, regardless of
+; which case the letter currently is.
+;
+; Compiling and running:
+;      nasm -f elf64 letter_swap.asm -o letter_swap.o
+;      ld letter_swap.o -o letter_swap
+;      ./letter_swap
 
-CASE_BIT   equ 0x20        ; el bit que distingue mayus de minus
+CASE_BIT   equ 0x20        ; The bit that distinguishes uppercase from lowercase
 
 section .data
     prompt:      db "Insert your message: "
     prompt_len:  equ $ - prompt
 
 section .bss
-    buffer:      resb 101      ; 100 caracteres + el '\n' del enter
+    buffer:      resb 101      ; 100 characters + the newline from pressing Enter
 
 section .text
     global _start
 
 _start:
-    ;imprime el prompt
-    mov     rax, 1              ; sys_write
+    ; --- Print the prompt asking for user input ---
+    mov     rax, 1              ; syscall 1 = write
     mov     rdi, 1              ; stdout
     mov     rsi, prompt
     mov     rdx, prompt_len
     syscall
 
-    ;lee lo que el usuario escribio
-    mov     rax, 0              ; sys_read
+    ; --- Read the user's message from stdin ---
+    mov     rax, 0              ; syscall 0 = read
     mov     rdi, 0              ; stdin
     mov     rsi, buffer
-    mov     rdx, 101
-    syscall                     ; rax = cuantos bytes realmente llegaron
+    mov     rdx, 101            ; max bytes to read
+    syscall                     ; rax = actual bytes read
 
-    mov     rcx, rax            ; guardo la longitud real, la necesito al final
-    xor     rbx, rbx            ; rbx = indice del char actual, arranca en 0
+    mov     rcx, rax            ; Save the real length (we need it for printing later)
+    xor     rbx, rbx            ; rbx = current character index, starts at 0
 
 .convert_loop:
-    cmp     rbx, rcx            ; ya recorri todo el buffer?
-    jge     .done_convert       ; si ya llegue al final, salgo del loop
+; --- Main loop: process each character in the buffer ---
+    cmp     rbx, rcx            ; Have we processed all characters?
+    jge     .done_convert       ; If yes, exit the loop
 
-    movzx   eax, byte [buffer + rbx]   ; agarro el char actual en al
+    movzx   eax, byte [buffer + rbx]   ; Load current character into AL (zero-extended)
 
-    ;primero me fijo si es mayuscula (0x41 a 0x5A)
-    cmp     al, 0x41
-    jl      .check_lower        ; si es menor que 'A', no es mayuscula, brinco
-    cmp     al, 0x5A
-    jg      .check_lower        ; si es mayor que 'Z', tampoco es, brinco
+    ; --- Check if it's an UPPERCASE letter (0x41 = 'A' to 0x5A = 'Z') ---
+    cmp     al, 0x41            ; Is it less than 'A'?
+    jl      .check_lower        ; If yes, it's not uppercase — check lowercase
+    cmp     al, 0x5A            ; Is it greater than 'Z'?
+    jg      .check_lower        ; If yes, not uppercase either
 
-    ; si llego aca es que SI es mayuscula. Aca esta la magia:
-    xor     al, CASE_BIT        ; le apago el bit 0x20 -> se vuelve minuscula
-    mov     [buffer + rbx], al  ; lo guardo de vuelta en el buffer
-    jmp     .next_char          ; ya lo procese, sigo con el siguiente
+    ; It IS uppercase! Flip bit 5 to make it lowercase.
+    xor     al, CASE_BIT        ; XOR with 0x20: 'A'->'a', 'B'->'b', etc.
+    mov     [buffer + rbx], al  ; Write the modified character back to the buffer
+    jmp     .next_char          ; Done with this character, move to the next
 
 .check_lower:
-    ; si no era mayuscula, me fijo si es minuscula (0x61 a 0x7A)
-    cmp     al, 0x61
-    jl      .next_char          ; menor que 'a' -> no es letra, lo dejo igual
-    cmp     al, 0x7A
-    jg      .next_char          ; mayor que 'z' -> tampoco, lo dejo igual
+    ; --- Check if it's a lowercase letter (0x61 = 'a' to 0x7A = 'z') ---
+    cmp     al, 0x61            ; Is it less than 'a'?
+    jl      .next_char          ; Not a letter — leave it unchanged
+    cmp     al, 0x7A            ; Is it greater than 'z'?
+    jg      .next_char          ; Not a letter — leave it unchanged
 
-    ; si llego aca SI es minuscula, mismo truco pero al reves:
-    xor     al, CASE_BIT        ; le prendo el bit 0x20 -> se vuelve mayuscula
-    mov     [buffer + rbx], al  ; el MISMO xor sirve para las dos direcciones
+    ; It IS lowercase! Flip bit 5 to make it uppercase.
+    ; The SAME XOR works in both directions — that's the beauty of XOR.
+    xor     al, CASE_BIT        ; 'a'->'A', 'b'->'B', etc.
+    mov     [buffer + rbx], al  ; Write back to buffer
 
 .next_char:
-    inc     rbx                 ; paso al siguiente char
-    jmp     .convert_loop       ; y repito
+    inc     rbx                 ; Move to the next character
+    jmp     .convert_loop       ; Repeat
 
 .done_convert:
-    ;imprimo el buffer ya convertido
+    ; --- Print the modified buffer (case-swapped) ---
     mov     rax, 1
     mov     rdi, 1
     mov     rsi, buffer
-    mov     rdx, rcx            ; uso la longitud REAL que lei, no un valor fijo
+    mov     rdx, rcx            ; Use the REAL length we saved earlier
     syscall
 
-    ; syscall exit
+    ; --- Exit ---
     mov     rax, 60
     xor     rdi, rdi
     syscall
