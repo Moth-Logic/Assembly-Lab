@@ -1,5 +1,5 @@
-; ==============================================================================
 ; Tarea Corta 03 - Parte 1 (Actividad 2)
+@ Julian Solorzano y Abril Gonzales
 
 section .data
     msg_num1    db "Ingrese el primer numero: ", 0
@@ -161,6 +161,7 @@ print_string:
 ; RDI = número a convertir
 ; RSI = base destino (2 a 16)
 ; Devuelve en RAX la dirección del texto generado en outbuf
+
 to_base:
     push rbx
     push rcx
@@ -195,6 +196,7 @@ to_base:
     pop rcx
     pop rbx
     ret
+
 
 ; Subrutina: read_number_safe
 ; Lee un número decimal, valida y lo convierte a entero.
