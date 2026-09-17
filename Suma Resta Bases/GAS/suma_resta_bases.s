@@ -19,8 +19,8 @@ msg_num2:     .asciz "Ingrese el segundo numero: "
 msg_error:    .asciz "Error: Entrada invalida. Por favor ingrese un numero valido.\n"
 msg_sum:      .asciz "  Suma: "
 msg_sub:      .asciz "  Resta: "
-str_base:     .asciz "\n La base es: "
-str_base_end: .asciz "=\n"
+str_base:     .asciz "Base = "
+str_base_end: .asciz "\n"
 newline:      .asciz "\n"
 minus_sign:   .asciz "-"
 digitos:      .asciz "0123456789ABCDEF"
@@ -89,7 +89,7 @@ _start:
     cmp r4, #16
     bgt .exit
 
-    @ Mostrar separador e indicar la base
+    @ Mostrar el texto "Base = " indicando la base actual
     ldr r0, =str_base
     bl print_string
     mov r0, r4

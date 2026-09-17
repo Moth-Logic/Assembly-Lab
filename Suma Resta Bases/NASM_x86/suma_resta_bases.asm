@@ -1,5 +1,7 @@
 ; Tarea Corta 03 - Parte 1 (Actividad 2)
-@ Julian Solorzano y Abril Gonzales
+;Julian Solorzano y Abril Gonzales
+
+DEFAULT ABS
 
 section .data
     msg_num1    db "Ingrese el primer numero: ", 0
@@ -7,8 +9,8 @@ section .data
     msg_error   db "Error: Entrada invalida. Por favor ingrese un numero valido.", 10, 0
     msg_sum     db "  Suma: ", 0
     msg_sub     db "  Resta: ", 0
-    str_base    db 10, "--- La base es: ", 0
-    str_base_end db " ---", 10, 0
+    str_base    db "Base = ", 0
+    str_base_end db 10, 0
     newline     db 10, 0
     minus_sign  db "-", 0
     digitos     db "0123456789ABCDEF", 0
@@ -74,7 +76,7 @@ _start:
     cmp r12, 16
     jg .exit                    ; ya terminamos con la base 16
 
-    ; Mostrar separador e indicar la base
+    ; Mostrar la etiqueta "Base = " indicando la base
     mov rdi, str_base
     call print_string
     mov rdi, r12
