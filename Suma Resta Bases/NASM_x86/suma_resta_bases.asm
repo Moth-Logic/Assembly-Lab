@@ -1,9 +1,5 @@
 ; ==============================================================================
 ; Tarea Corta 03 - Parte 1 (Actividad 2)
-; Arquitectura: x86-64 (NASM)
-; Descripción: Lee dos números decimales de 64 bits, calcula su suma y su
-;              diferencia, y muestra ambos resultados en bases de 2 a 16.
-; ==============================================================================
 
 section .data
     msg_num1    db "Ingrese el primer numero: ", 0
@@ -125,10 +121,10 @@ _start:
     xor rdi, rdi
     syscall
 
-; ==============================================================================
+
 ; Subrutina: print_string
 ; RDI = dirección de una cadena terminada en 0
-; ==============================================================================
+
 print_string:
     push rax
     push rbx
@@ -159,13 +155,12 @@ print_string:
     pop rax
     ret
 
-; ==============================================================================
+
 ; Subrutina: to_base
 ; Convierte un entero sin signo a una cadena en la base indicada.
 ; RDI = número a convertir
 ; RSI = base destino (2 a 16)
 ; Devuelve en RAX la dirección del texto generado en outbuf
-; ==============================================================================
 to_base:
     push rbx
     push rcx
@@ -201,13 +196,12 @@ to_base:
     pop rbx
     ret
 
-; ==============================================================================
 ; Subrutina: read_number_safe
 ; Lee un número decimal, valida y lo convierte a entero.
 ; RDI = mensaje a mostrar
 ; RSI = buffer donde se guarda la entrada
 ; Devuelve el número convertido en RAX
-; ==============================================================================
+
 read_number_safe:
     push r12
     push r13
