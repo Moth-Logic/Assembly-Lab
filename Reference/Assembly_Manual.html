@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>:: TERMINAL :: Referencia ASM // NASM+GAS</title>
+<style>
+  @import url('https://cdnjs.cloudflare.com/ajax/libs/JetBrains-Mono/2.304/web/jetbrains-mono.css');
+  :root{
+    --bg:#020402; --panel:#080b08; --panel-line:#1c3320;
+    --green:#5dff8a; --green-dim:#3f8a58; --green-glow: rgba(93,255,138,0.55);
+    --amber:#ffd23f; --amber-dim:#c98f1f;
+    --text:#b9e8c6; --text-dim:#4d6b58; --white:#eafff0;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background: radial-gradient(ellipse at center, #071007 0%, var(--bg) 70%);
+    color:var(--text);
+    font-family:'JetBrains Mono', ui-monospace, Consolas, monospace;
+    padding:20px 10px 60px;
+    position:relative;
+  }
+  body::before{
+    content:"";
+    position:fixed; inset:0; pointer-events:none; z-index:50;
+    background: repeating-linear-gradient(
+      0deg, rgba(0,0,0,0.32) 0px, rgba(0,0,0,0.32) 1px,
+      transparent 1px, transparent 2px
+    );
+    mix-blend-mode:multiply;
+    animation:flicker 6s infinite;
+  }
+  @keyframes flicker{
+    0%,97%,100%{opacity:1;}
+    98%{opacity:0.85;}
+    99%{opacity:0.97;}
+  }
+  body::after{
+    content:"";
+    position:fixed; inset:0; pointer-events:none; z-index:51;
+    box-shadow: inset 0 0 220px 60px rgba(0,0,0,0.88);
+  }
+  .wrap{max-width:1280px; margin:0 auto; position:relative; z-index:1;}
+  .bezel{
+    background:#050805;
+    border:14px solid #0c120c;
+    border-radius:18px;
+    box-shadow:0 0 0 2px #000, 0 0 60px rgba(93,255,138,0.08), inset 0 0 40px rgba(0,0,0,0.6);
+  }
+  .term-shell{border-radius:6px; overflow:hidden; background:rgba(4,8,4,0.6);}
+  .term-bar{
+    display:flex; align-items:center; gap:8px;
+    padding:8px 12px;
+    background:linear-gradient(#0f180f,#070c07);
+    border-bottom:1px solid var(--panel-line);
+  }
+  .term-dot{width:9px; height:9px; border-radius:50%; display:inline-block; background:#2c4a2c; box-shadow:0 0 4px rgba(93,255,138,0.3);}
+  .term-dot.on{background:var(--green); box-shadow:0 0 6px var(--green-glow);}
+  .term-bar .path{margin-left:10px; color:var(--text-dim); font-size:10.5px; letter-spacing:1px;}
+  .term-body{padding:16px 22px 24px;}
+
+  .boot-log{
+    font-size:10.5px; line-height:1.7; color:var(--green-dim);
+    border-bottom:1px dashed var(--panel-line); padding-bottom:12px; margin-bottom:14px;
+  }
+  .boot-log .ok{color:var(--green); text-shadow:0 0 6px var(--green-glow);}
+  .ascii-banner{
+    color:var(--green); font-size:9.5px; line-height:1.15; white-space:pre;
+    text-shadow:0 0 6px var(--green-glow);
+    margin-bottom:10px; overflow-x:auto;
+  }
+
+  header{margin-bottom:6px;}
+  header .title{
+    font-size:22px; color:var(--green); letter-spacing:1px; font-weight:700;
+    text-shadow:0 0 10px var(--green-glow), 0 0 24px rgba(93,255,138,0.25);
+  }
+  header .title .amb{color:var(--amber); text-shadow:0 0 10px rgba(255,210,63,0.4);}
+  header .sub{color:var(--text-dim); font-size:11.5px; line-height:1.6; max-width:660px; margin-top:8px;}
+  .prompt-line{color:var(--green-dim); font-size:11.5px; margin-top:10px;}
+  .cursor{
+    display:inline-block; width:8px; height:13px; background:var(--green);
+    box-shadow:0 0 8px var(--green-glow);
+    animation:blink 1s steps(1) infinite; margin-left:2px; vertical-align:-2px;
+  }
+  @keyframes blink{ 50%{opacity:0;} }
+
+  section.block{margin-bottom:20px;}
+  .sec-title{
+    font-size:12px; text-transform:uppercase; letter-spacing:2px; color:var(--white);
+    border-left:3px solid var(--amber); padding-left:10px; margin:0 0 10px;
+    text-shadow:0 0 8px rgba(234,255,240,0.18);
+  }
+  .sec-title::before{content:"$ ";color:var(--green-dim);}
+  .sec-title small{
+    display:block; color:var(--text-dim); text-transform:none; letter-spacing:0;
+    font-size:10.5px; margin-top:3px; font-weight:400;
+  }
+  .card{
+    background:#060a06; border:1px solid var(--panel-line); border-radius:4px;
+    padding:12px 15px 15px;
+    box-shadow:0 0 18px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(93,255,138,0.02);
+  }
+  table{width:100%; border-collapse:collapse; font-size:11.2px;}
+  th, td{text-align:left; padding:6px 7px; border-bottom:1px solid var(--panel-line); vertical-align:top;}
+  th{color:var(--amber-dim); font-weight:600; font-size:10px; text-transform:uppercase; letter-spacing:0.5px;}
+  tr:last-child td{border-bottom:none;}
+  tr:hover td{background:rgba(93,255,138,0.045);}
+  td.reg{color:#7fd7ff; font-family:inherit; font-weight:600; white-space:nowrap; text-shadow:0 0 5px rgba(127,215,255,0.3);}
+  td.dim{color:var(--text-dim);}
+  .cm{color:var(--text-dim);}
+  .tag{
+    display:inline-block; font-size:9px; padding:1px 5px; border-radius:2px;
+    border:1px solid var(--panel-line); color:var(--text-dim); margin-top:3px;
+  }
+  .expl{
+    display:block; color:var(--amber); font-size:10.4px; margin-top:4px;
+    font-style:italic; opacity:0.95; text-shadow:0 0 4px rgba(255,210,63,0.15);
+  }
+  .expl::before{content:"→ ";}
+  .two-col{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  @media (max-width:720px){ .two-col{grid-template-columns:1fr;} }
+  .colhead{font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--text-dim); margin-bottom:6px;}
+  footer{
+    margin-top:20px; padding-top:12px; border-top:1px dashed var(--panel-line);
+    color:var(--text-dim); font-size:10px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="bezel">
+<div class="term-shell">
+  <div class="term-bar">
+    <span class="term-dot on"></span><span class="term-dot"></span><span class="term-dot on"></span>
+    <span class="path">tty1 :: /mnt/ic3101/ensamblador_referencia_TERMINAL.html :: 132x48</span>
+  </div>
+  <div class="term-body">
+
+  <div class="boot-log">
+POST........................<span class="ok">OK</span><br>
+CARGANDO TABLA NASM.........<span class="ok">OK</span><br>
+CARGANDO TABLA GAS/ARM......<span class="ok">OK</span><br>
+MONTANDO /dev/asm0..........<span class="ok">OK</span><br>
+INICIANDO SHELL IC-3101.....<span class="ok">LISTO</span>
+  </div>
+
+  <div class="ascii-banner">┌─┐┌─┐┌┬┐  ╔═╗╔═╗╔╦╗╔═╗╦═╗╔═╗╔╗╔╔═╗╔═╗
+├─┤└─┐│││  ╠╣ ║╣ ╠╦╝║╣ ╠╦╝║╣ ║║║║  ║╣ 
+┴ ┴└─┘┴ ┴  ╚  ╚═╝╩╚═╚═╝╩╚═╚═╝╝╚╝╚═╝╚═╝</div>
+
+  <header>
+    <div class="title">ensamblador<span class="amb">::</span>referencia_completa</div>
+    <div class="sub">NASM (x86-64) / GAS (ARM AA32) — directivas, instrucciones, plantillas, y guía paso a paso. Terminal build.</div>
+    <div class="prompt-line">root@ic3101:~$ less referencia_completa.md<span class="cursor"></span></div>
+  </header>
+
+  <!-- =========== NUEVO: INDICE =========== -->
+  <section class="block" id="sec-indice">
+    <div class="sec-title">Índice rápido <small>saltá directo a la sección que necesitás</small></div>
+    <div class="card">
+      <div class="two-col">
+        <div>
+          <div class="colhead">Referencia de sintaxis</div>
+          <table>
+            <tr><td class="dim">→</td><td><a href="#sec-registros" style="color:var(--green);text-decoration:none;">Registros</a></td></tr>
+            <tr><td class="dim">→</td><td><a href="#sec-dir-datos" style="color:var(--green);text-decoration:none;">Directivas de datos</a></td></tr>
+            <tr><td class="dim">→</td><td><a href="#sec-dir-estructurales" style="color:var(--green);text-decoration:none;">Directivas estructurales</a></td></tr>
+            <tr><td class="dim">→</td><td><a href="#sec-movimiento" style="color:var(--green);text-decoration:none;">Movimiento de datos</a></td></tr>
+            <tr><td class="dim">→</td><td><a href="#sec-direccionamiento" style="color:var(--green);text-decoration:none;">Modos de direccionamiento</a></td></tr>
+            <tr><td class="dim">→</td><td><a href="#sec-aritmetica" style="color:var(--green);text-decoration:none;">Aritmética</a></td></tr>
+            <tr><td class="dim">→</td><td><a href="#sec-logica" style="color:var(--green);text-decoration:none;">Lógica y bits</a></td></tr>
+            <tr><td class="dim">→</td><td><a href="#sec-comparacion" style="color:var(--green);text-decoration:none;">Comparación</a></td></tr>
+            <tr><td class="dim">→</td><td><a href="#sec-saltos" style="color:var(--green);text-decoration:none;">Saltos y ramas</a></td></tr>
+            <tr><td class="dim">→</td><td><a href="#sec-syscall-control" style="color:var(--green);text-decoration:none;">Syscalls y control de flujo</a></td></tr>
+            <tr><td class="dim">→</td><td><a href="#sec-convencion" style="color:var(--green);text-decoration:none;">Convención de llamada (funciones propias)</a></td></tr>
+            <tr><td class="dim">→</td><td><a href="#sec-syscalls-tabla" style="color:var(--green);text-decoration:none;">Tabla de syscalls Linux</a></td></tr>
+          </table>
+        </div>
+        <div>
+          <div class="colhead">Cómo armar tu programa</div>
+          <table>
+            <tr><td class="dim">→</td><td><a href="#sec-pasos" style="color:var(--green);text-decoration:none;">Pasos, de la idea al ejecutable</a></td></tr>
+            <tr><td class="dim">→</td><td><a href="#sec-esqueleto" style="color:var(--green);text-decoration:none;">Esqueleto narrado de un .asm</a></td></tr>
+            <tr><td class="dim">→</td><td><a href="#sec-ascii" style="color:var(--green);text-decoration:none;">Tabla ASCII rápida</a></td></tr>
+            <tr><td class="dim">→</td><td><a href="#sec-snippets" style="color:var(--green);text-decoration:none;">Códigos comunes (copiar/pegar)</a></td></tr>
+            <tr><td class="dim">→</td><td><a href="#sec-build" style="color:var(--green);text-decoration:none;">Ensamblar, enlazar y Makefile</a></td></tr>
+            <tr><td class="dim">→</td><td><a href="#sec-gotchas" style="color:var(--green);text-decoration:none;">Gotchas, debugging y checklist</a></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========== NUEVO: REGISTROS =========== -->
+  <section class="block" id="sec-registros">
+    <div class="sec-title">Registros <small>qué hace cada uno — x86-64 y ARM AA32</small></div>
+    <div class="two-col">
+      <div class="card">
+        <div class="colhead">x86-64 (NASM)</div>
+        <table>
+          <tr><th>Registro</th><th>Qué hace / convención</th></tr>
+          <tr><td class="reg">rax</td><td>Acumulador. Número de syscall antes de "syscall", valor de retorno después. También destino por defecto en mul/div.</td></tr>
+          <tr><td class="reg">rbx</td><td>Registro general. Históricamente "base", pero hoy es de propósito general — muy usado como índice o valor temporal preservado entre llamadas.</td></tr>
+          <tr><td class="reg">rcx</td><td>Contador — usado automáticamente por "loop" y por instrucciones de repetición (rep). <b>Se pisa durante "syscall"</b> (guarda ahí la dirección de retorno).</td></tr>
+          <tr><td class="reg">rdx</td><td>3er argumento de syscall. En mul/div de 64 bits, junto con rax forma el par rdx:rax (dividendo de 128 bits / resto de la división).</td></tr>
+          <tr><td class="reg">rsi</td><td>2do argumento de syscall — "source index", típicamente el puntero de origen (buffer a leer/escribir).</td></tr>
+          <tr><td class="reg">rdi</td><td>1er argumento de syscall — "destination index", típicamente el file descriptor o destino.</td></tr>
+          <tr><td class="reg">rbp</td><td>Base pointer — apunta al inicio del stack frame actual (útil para acceder a variables locales/argumentos en funciones con muchos parámetros).</td></tr>
+          <tr><td class="reg">rsp</td><td>Stack pointer — apunta al tope actual de la pila. push/pop lo mueven automáticamente. NUNCA lo pises a mano sin saber lo que hacés.</td></tr>
+          <tr><td class="reg">r8 - r9</td><td>5to y 6to argumento de syscall. Registros de propósito general adicionales (extensión de x86-64 sobre el x86 de 32 bits).</td></tr>
+          <tr><td class="reg">r10</td><td>4to argumento de syscall (ojo: en llamadas a funciones C normales el 4to argumento es rcx, pero en syscalls es r10 — rcx está ocupado por el propio mecanismo de "syscall").</td></tr>
+          <tr><td class="reg">r11</td><td>Registro general. <b>Se pisa durante "syscall"</b> (guarda ahí las flags). No confiar en su valor después de un syscall si no lo guardaste antes.</td></tr>
+          <tr><td class="reg">r12 - r15</td><td>Registros generales libres, sin rol fijo en la convención de syscalls — ideales para guardar valores que necesitás que sobrevivan varias syscalls seguidas (como hicimos con num1/num2).</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="colhead">ARM AA32 (GAS)</div>
+        <table>
+          <tr><th>Registro</th><th>Qué hace / convención</th></tr>
+          <tr><td class="reg">r0</td><td>1er argumento de syscall, y registro de retorno de valores (resultado de una función/syscall aparece acá).</td></tr>
+          <tr><td class="reg">r1</td><td>2do argumento de syscall.</td></tr>
+          <tr><td class="reg">r2</td><td>3er argumento de syscall.</td></tr>
+          <tr><td class="reg">r3</td><td>4to argumento de syscall / registro general.</td></tr>
+          <tr><td class="reg">r4 - r6</td><td>Registros generales, sin rol fijo — libres para usar como variables/índices/base de buffer (los usamos así en el código).</td></tr>
+          <tr><td class="reg">r7</td><td><b>Número de syscall</b> — el equivalente ARM de rax en x86 para esto específicamente.</td></tr>
+          <tr><td class="reg">r8 - r10</td><td>Registros generales adicionales, libres para variables temporales o valores que deben sobrevivir varias instrucciones (los usamos como scratch en las subrutinas).</td></tr>
+          <tr><td class="reg">r11 (fp)</td><td>Frame pointer por convención (AAPCS), pero en código simple sin funciones anidadas complejas se puede usar como registro general (lo hicimos para guardar num1).</td></tr>
+          <tr><td class="reg">r12 (ip)</td><td>"Intra-procedure call scratch register" — de uso libre entre llamadas, lo usamos para num2.</td></tr>
+          <tr><td class="reg">r13 (sp)</td><td>Stack pointer — pila de llamadas, se mueve automáticamente con push/pop.</td></tr>
+          <tr><td class="reg">r14 (lr)</td><td>Link register — guarda la dirección de retorno cuando hacés "bl" (branch+link). Por eso hay que hacer push/pop de lr en cualquier subrutina que a su vez llame a otra.</td></tr>
+          <tr><td class="reg">r15 (pc)</td><td>Program counter — apunta a la instrucción actual (con offset de pipeline). Escribirlo directamente equivale a un salto.</td></tr>
+          <tr><td class="reg">cpsr</td><td>"Current Program Status Register" — contiene las flags (N,Z,C,V) que leen los sufijos de condición (eq, ne, lt...).</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- DIRECTIVAS DE DATOS -->
+  <section class="block" id="sec-dir-datos">
+    <div class="sec-title">Directivas de datos <small>reservar espacio vs. definir valores ya inicializados</small></div>
+    <div class="card">
+      <table>
+        <tr><th>NASM</th><th>GAS</th><th>Tamaño</th><th>Qué hace (general)</th><th>Plantilla + qué hace ESE ejemplo</th></tr>
+        <tr><td class="reg">db</td><td class="reg">.byte</td><td class="dim">1 byte</td><td>Define uno o más bytes con valor inicial.</td><td class="reg dim">msg: db "Hola", 10<span class="tag">section .data</span><span class="expl">guarda el texto "Hola" seguido de un salto de línea (10 = '\n')</span></td></tr>
+        <tr><td class="reg">dw</td><td class="reg">.hword / .short</td><td class="dim">2 bytes</td><td>Define un valor de 16 bits ya inicializado.</td><td class="reg dim">num: dw 300<span class="tag">section .data</span><span class="expl">guarda el número 300 usando 16 bits, en la etiqueta "num"</span></td></tr>
+        <tr><td class="reg">dd</td><td class="reg">.word / .long</td><td class="dim">4 bytes</td><td>Define un valor de 32 bits ya inicializado.</td><td class="reg dim">num: dd 70000<span class="tag">section .data</span><span class="expl">guarda 70000 usando 32 bits (no entra en 16 bits)</span></td></tr>
+        <tr><td class="reg">dq</td><td class="reg">.quad</td><td class="dim">8 bytes</td><td>Define un valor de 64 bits ya inicializado.</td><td class="reg dim">num: dq 5000000000<span class="tag">section .data</span><span class="expl">guarda un número que necesita 64 bits para caber</span></td></tr>
+        <tr><td class="reg">dt</td><td class="reg">—</td><td class="dim">10 bytes</td><td>Extendido de 80 bits (poco usado, coma flotante x87).</td><td class="reg dim">pi: dt 3.14159<span class="tag">section .data, raro en este curso</span><span class="expl">guarda un número de punto flotante extendido</span></td></tr>
+        <tr><td class="reg">resb</td><td class="reg">.skip / .space (en .bss)</td><td class="dim">N bytes</td><td><b>Reserva</b> N bytes SIN inicializar (van a 0 en Linux).</td><td class="reg dim">buffer: resb 101<span class="tag">SOLO en section .bss</span><span class="expl">deja 101 bytes de espacio vacío, listos para llenarse en runtime</span></td></tr>
+        <tr><td class="reg">resw</td><td class="reg">.skip N*2</td><td class="dim">N×2 bytes</td><td>Reserva N palabras de 16 bits sin inicializar.</td><td class="reg dim">arr: resw 10<span class="tag">section .bss</span><span class="expl">reserva espacio para 10 números de 16 bits vacíos</span></td></tr>
+        <tr><td class="reg">resd</td><td class="reg">.skip N*4</td><td class="dim">N×4 bytes</td><td>Reserva N palabras de 32 bits sin inicializar.</td><td class="reg dim">arr: resd 10<span class="tag">section .bss</span><span class="expl">reserva espacio para 10 números de 32 bits vacíos</span></td></tr>
+        <tr><td class="reg">resq</td><td class="reg">.skip N*8</td><td class="dim">N×8 bytes</td><td>Reserva N palabras de 64 bits sin inicializar.</td><td class="reg dim">arr: resq 10<span class="tag">section .bss</span><span class="expl">reserva espacio para 10 números de 64 bits vacíos</span></td></tr>
+        <tr><td class="reg">—</td><td class="reg">.lcomm nombre, N</td><td class="dim">N bytes</td><td>Forma "GAS nativa" de reservar N bytes en .bss.</td><td class="reg dim">.lcomm buffer, 101<span class="tag">dentro de .section .bss</span><span class="expl">reserva 101 bytes vacíos bajo el nombre "buffer"</span></td></tr>
+        <tr><td class="reg">—</td><td class="reg">.ascii "texto"</td><td class="dim">string</td><td>String SIN null terminator automático.</td><td class="reg dim">msg: .ascii "Hola\n"<span class="tag">.section .data</span><span class="expl">guarda el texto tal cual, sin agregar '\0' al final</span></td></tr>
+        <tr><td class="reg">—</td><td class="reg">.asciz "texto"</td><td class="dim">string + \0</td><td>String CON null terminator automático al final.</td><td class="reg dim">msg: .asciz "Hola"<span class="tag">.section .data</span><span class="expl">guarda "Hola" y le agrega un '\0' al final automáticamente</span></td></tr>
+        <tr><td class="reg">times N db X</td><td class="reg">.fill N, 1, X</td><td class="dim">N bytes</td><td>Repite un valor N veces.</td><td class="reg dim">times 10 db 0<span class="tag">section .data</span><span class="expl">escribe el byte 0, diez veces seguidas (padding)</span></td></tr>
+        <tr><td class="reg">equ</td><td class="reg">.equ / =</td><td class="dim">0 bytes</td><td>Constante en tiempo de ensamblado.</td><td class="reg dim">MAXLEN equ 100<span class="tag">en cualquier parte, antes de usarlo</span><span class="expl">de ahora en más, "MAXLEN" significa literalmente 100</span></td></tr>
+        <tr><td class="reg">$</td><td class="reg">.</td><td class="dim">—</td><td>"Dirección actual" — para calcular longitudes.</td><td class="reg dim">len equ $ - msg<span class="tag">justo debajo del dato a medir</span><span class="expl">calcula cuántos bytes mide "msg" y lo guarda en "len"</span></td></tr>
+        <tr><td class="reg">.align N</td><td class="reg">.align N / .balign N</td><td class="dim">—</td><td>Alinea la siguiente dirección a un múltiplo de N.</td><td class="reg dim">.align 4<span class="tag">antes de la etiqueta a alinear</span><span class="expl">la próxima etiqueta va a arrancar en una dirección múltiplo de 4</span></td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- DIRECTIVAS ESTRUCTURALES -->
+  <section class="block" id="sec-dir-estructurales">
+    <div class="sec-title">Directivas estructurales / de ensamblado</div>
+    <div class="card">
+      <table>
+        <tr><th>NASM</th><th>GAS</th><th>Qué hace (general)</th><th>Plantilla + qué hace ESE ejemplo</th></tr>
+        <tr><td class="reg">section .data / .bss / .text</td><td class="reg">.section .data / .bss / .text</td><td>Cambia a qué región de memoria van las líneas siguientes.</td><td class="reg dim">section .text<span class="tag">al inicio del bloque</span><span class="expl">todo lo que sigue de aquí en adelante es código ejecutable</span></td></tr>
+        <tr><td class="reg">global etiqueta</td><td class="reg">.global etiqueta / .globl etiqueta</td><td>Hace visible una etiqueta para el linker.</td><td class="reg dim">global _start<span class="tag">cerca del inicio, antes de _start:</span><span class="expl">le avisa al linker dónde está el punto de entrada del programa</span></td></tr>
+        <tr><td class="reg">extern etiqueta</td><td class="reg">.extern etiqueta</td><td>Declara que una etiqueta está definida en OTRO archivo.</td><td class="reg dim">extern printf<span class="tag">al inicio del archivo</span><span class="expl">avisa que "printf" existe, aunque esté definida en otro .o</span></td></tr>
+        <tr><td class="reg">%define NOMBRE valor</td><td class="reg">.equ NOMBRE, valor</td><td>Constante simbólica — sustitución de texto.</td><td class="reg dim">%define MAXLEN 100<span class="tag">antes de su primer uso</span><span class="expl">reemplaza cada "MAXLEN" del archivo por 100</span></td></tr>
+        <tr><td class="reg">%macro nombre N ... %endmacro</td><td class="reg">.macro nombre arg1,arg2 ... .endm</td><td>Bloque de instrucciones reutilizable con parámetros.</td><td class="reg dim">%macro imprimir 2<br>...<br>%endmacro<span class="tag">antes de section .text</span><span class="expl">define "imprimir" para poder llamarla luego como: imprimir msg, len</span></td></tr>
+        <tr><td class="reg">%include "archivo.inc"</td><td class="reg">.include "archivo.s"</td><td>Inserta el contenido de otro archivo fuente.</td><td class="reg dim">%include "macros.inc"<span class="tag">primera línea del archivo</span><span class="expl">pega el contenido de macros.inc justo ahí, antes de ensamblar</span></td></tr>
+        <tr><td class="reg">bits 64 / bits 32</td><td class="reg">(flag del ensamblador)</td><td>Indica si generar código de 64 o 32 bits.</td><td class="reg dim">bits 64<span class="tag">primerísima línea</span><span class="expl">le dice al ensamblador que este código es para x86 de 64 bits</span></td></tr>
+        <tr><td class="reg">; comentario</td><td class="reg">@ comentario &nbsp;<span class="tag">o # / //</span></td><td>Todo lo que sigue en la línea se ignora.</td><td class="reg dim">mov rax, 1 ; syscall write<span class="tag">al final de cualquier línea</span><span class="expl">el ensamblador ignora todo desde el ; en adelante</span></td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- MOVIMIENTO DE DATOS -->
+  <section class="block" id="sec-movimiento">
+    <div class="sec-title">Movimiento de datos</div>
+    <div class="card">
+      <table>
+        <tr><th>NASM (x86-64)</th><th>GAS (ARM AA32)</th><th>Qué hace (general)</th><th>Plantilla + qué hace ESE ejemplo</th></tr>
+        <tr><td class="reg">mov dst, src</td><td class="reg">mov dst, src / mov dst, #imm</td><td>Copia un valor al destino.</td><td class="reg dim">mov rax, 5 &nbsp;/&nbsp; mov r1, r2<span class="tag">section .text</span><span class="expl">copia el número 5 a rax / mueve lo que hay en r2 al registro r1</span></td></tr>
+        <tr><td class="reg">mov reg, [mem]</td><td class="reg">ldr reg, [dir] / ldrb / ldrh</td><td>Carga (load) un valor DESDE memoria a un registro.</td><td class="reg dim">ldr r0, [r1]<span class="tag">r1 ya tiene una dirección</span><span class="expl">va a la dirección guardada en r1 y trae lo que hay ahí a r0</span></td></tr>
+        <tr><td class="reg">mov [mem], reg</td><td class="reg">str reg, [dir] / strb / strh</td><td>Guarda (store) un registro EN memoria.</td><td class="reg dim">str r0, [r1]<span class="tag">después de tener r0 listo</span><span class="expl">escribe el valor de r0 en la dirección que apunta r1</span></td></tr>
+        <tr><td class="reg">movzx dst, src</td><td class="reg">ldrb / ldrh (zero-extend solos)</td><td>Carga un valor chico a uno grande, rellenando con CEROS.</td><td class="reg dim">movzx eax, byte [buffer+rbx]<span class="tag">dentro de un loop</span><span class="expl">trae 1 byte del buffer y lo mete en eax, con el resto de eax en cero</span></td></tr>
+        <tr><td class="reg">movsx dst, src</td><td class="reg">ldrsb / ldrsh</td><td>Igual, pero rellena con el bit de signo.</td><td class="reg dim">movsx eax, byte [valor]<span class="tag">cuando el dato tiene signo</span><span class="expl">trae 1 byte con signo y extiende ese signo al resto de eax</span></td></tr>
+        <tr><td class="reg">lea dst, [expr]</td><td class="reg">ldr dst, =etiqueta</td><td>Carga la DIRECCIÓN calculada (no el contenido).</td><td class="reg dim">lea rsi, [buffer]<span class="tag">antes de usar rsi como puntero</span><span class="expl">guarda EN rsi la dirección de "buffer" — no lo que hay adentro</span></td></tr>
+        <tr><td class="reg">push reg</td><td class="reg">push {reg}</td><td>Apila un valor.</td><td class="reg dim">push rax<span class="tag">antes de una llamada que use rax</span><span class="expl">guarda rax en la pila para poder recuperarlo después</span></td></tr>
+        <tr><td class="reg">pop reg</td><td class="reg">pop {reg}</td><td>Desapila un valor.</td><td class="reg dim">pop rax<span class="tag">en orden inverso al push</span><span class="expl">saca el último valor guardado en la pila y lo pone en rax</span></td></tr>
+        <tr><td class="reg">xchg a, b</td><td class="reg">(con registro temporal)</td><td>Intercambia dos valores entre sí.</td><td class="reg dim">xchg rax, rbx<span class="tag">section .text</span><span class="expl">lo que tenía rax pasa a rbx, y lo que tenía rbx pasa a rax</span></td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- =========== NUEVO: MODOS DE DIRECCIONAMIENTO =========== -->
+  <section class="block" id="sec-direccionamiento">
+    <div class="sec-title">Modos de direccionamiento <small>las distintas formas de decir "leé/escribí en esta dirección"</small></div>
+    <div class="two-col">
+      <div class="card">
+        <div class="colhead">x86-64 (NASM) — [base + índice*escala + desplazamiento]</div>
+        <table>
+          <tr><th>Modo</th><th>Ejemplo</th><th>Qué hace</th></tr>
+          <tr><td class="reg">Inmediato</td><td class="reg dim">mov rax, 5</td><td>El valor está escrito directo en la instrucción.</td></tr>
+          <tr><td class="reg">Registro</td><td class="reg dim">mov rax, rbx</td><td>El valor está en otro registro.</td></tr>
+          <tr><td class="reg">Directo</td><td class="reg dim">mov rax, [msg]</td><td>Lee desde la dirección fija de la etiqueta "msg".</td></tr>
+          <tr><td class="reg">Indirecto</td><td class="reg dim">mov rax, [rbx]</td><td>Lee desde la dirección que hay guardada DENTRO de rbx.</td></tr>
+          <tr><td class="reg">Base + desplaz.</td><td class="reg dim">mov al, [buffer + rbx]</td><td>Lee el byte que está "rbx posiciones" después de donde empieza buffer — el patrón típico de un loop sobre un array.</td></tr>
+          <tr><td class="reg">Base + índice*escala</td><td class="reg dim">mov eax, [arr + rbx*4]</td><td>Igual, pero multiplicando el índice por el tamaño de cada elemento (4 = un entero de 32 bits) — así rbx cuenta "elementos", no bytes.</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="colhead">ARM AA32 (GAS) — [Rn], [Rn, #off], [Rn, #off]!, [Rn], #off</div>
+        <table>
+          <tr><th>Modo</th><th>Ejemplo</th><th>Qué hace</th></tr>
+          <tr><td class="reg">Inmediato</td><td class="reg dim">mov r0, #5</td><td>El valor está escrito directo en la instrucción.</td></tr>
+          <tr><td class="reg">Registro</td><td class="reg dim">mov r0, r1</td><td>El valor está en otro registro.</td></tr>
+          <tr><td class="reg">Offset (base)</td><td class="reg dim">ldr r0, [r1, #4]</td><td>Lee desde (dirección en r1) + 4, sin modificar r1.</td></tr>
+          <tr><td class="reg">Offset con registro</td><td class="reg dim">ldrb r0, [r6, r5]</td><td>Lee el byte en (dirección en r6) + (valor de r5) — el patrón típico de un loop sobre un buffer.</td></tr>
+          <tr><td class="reg">Pre-indexado</td><td class="reg dim">ldr r0, [r1, #4]!</td><td>Primero suma 4 a r1 (r1 queda actualizado), DESPUÉS lee desde ahí.</td></tr>
+          <tr><td class="reg">Post-indexado</td><td class="reg dim">ldr r0, [r1], #4</td><td>Primero lee desde r1 tal cual estaba, DESPUÉS le suma 4 a r1 — útil para recorrer un array avanzando solo el puntero.</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ARITMETICA -->
+  <section class="block" id="sec-aritmetica">
+    <div class="sec-title">Aritmética</div>
+    <div class="card">
+      <table>
+        <tr><th>NASM (x86-64)</th><th>GAS (ARM AA32)</th><th>Qué hace (general)</th><th>Plantilla + qué hace ESE ejemplo</th></tr>
+        <tr><td class="reg">add dst, src</td><td class="reg">add dst, src1, src2</td><td>Suma.</td><td class="reg dim">add rax, 1 &nbsp;/&nbsp; add r0, r1, r2<span class="tag">section .text</span><span class="expl">rax pasa a valer rax+1 / r0 pasa a valer r1+r2 (r1 y r2 no cambian)</span></td></tr>
+        <tr><td class="reg">sub dst, src</td><td class="reg">sub dst, src1, src2</td><td>Resta.</td><td class="reg dim">sub rax, 1 &nbsp;/&nbsp; sub r0, r1, r2<span class="tag">section .text</span><span class="expl">rax pasa a valer rax−1 / r0 pasa a valer r1−r2</span></td></tr>
+        <tr><td class="reg">—</td><td class="reg">rsb dst, src1, src2</td><td>"Reverse subtract": dst = src2−src1.</td><td class="reg dim">rsb r0, r1, #100<span class="tag">section .text</span><span class="expl">r0 pasa a valer 100−r1 (invertido respecto a sub)</span></td></tr>
+        <tr><td class="reg">inc reg</td><td class="reg">add reg, reg, #1</td><td>Incrementa en 1.</td><td class="reg dim">inc rbx &nbsp;/&nbsp; add r5, r5, #1<span class="tag">típico al final de un loop</span><span class="expl">suma 1 al índice, para avanzar al siguiente elemento</span></td></tr>
+        <tr><td class="reg">dec reg</td><td class="reg">sub reg, reg, #1</td><td>Decrementa en 1.</td><td class="reg dim">dec rbx &nbsp;/&nbsp; sub r5, r5, #1<span class="tag">section .text</span><span class="expl">resta 1 al registro</span></td></tr>
+        <tr><td class="reg">neg reg</td><td class="reg">rsb reg, reg, #0</td><td>Cambia el signo.</td><td class="reg dim">neg rax &nbsp;/&nbsp; rsb r0, r0, #0<span class="tag">section .text</span><span class="expl">invierte el signo del número (positivo↔negativo)</span></td></tr>
+        <tr><td class="reg">mul src <span class="tag">unsigned</span></td><td class="reg">mul dst, src1, src2</td><td>Multiplicación sin signo.</td><td class="reg dim">mul rbx &nbsp;/&nbsp; mul r0, r1, r2<span class="tag">rax debe tener un factor antes (x86)</span><span class="expl">rax pasa a valer rax*rbx / r0 pasa a valer r1*r2</span></td></tr>
+        <tr><td class="reg">imul src/dst,src</td><td class="reg">mul (ARM no distingue)</td><td>Multiplicación con signo.</td><td class="reg dim">imul rax, rbx<span class="tag">section .text</span><span class="expl">rax pasa a valer rax*rbx, tratando ambos como con signo</span></td></tr>
+        <tr><td class="reg">div src <span class="tag">unsigned</span></td><td class="reg">udiv dst, src1, src2</td><td>División sin signo.</td><td class="reg dim">xor rdx,rdx<br>div rbx<span class="tag">limpiar rdx antes en x86</span><span class="expl">divide rax entre rbx: cociente queda en rax, resto en rdx</span></td></tr>
+        <tr><td class="reg">idiv src</td><td class="reg">sdiv dst, src1, src2</td><td>División con signo.</td><td class="reg dim">idiv rbx &nbsp;/&nbsp; sdiv r0, r1, r2<span class="tag">section .text</span><span class="expl">igual que arriba, pero tratando los números como con signo</span></td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- LOGICA Y BITS -->
+  <section class="block" id="sec-logica">
+    <div class="sec-title">Lógica y manipulación de bits</div>
+    <div class="card">
+      <table>
+        <tr><th>NASM (x86-64)</th><th>GAS (ARM AA32)</th><th>Qué hace (general)</th><th>Plantilla + qué hace ESE ejemplo</th></tr>
+        <tr><td class="reg">and dst, src</td><td class="reg">and dst, src1, src2</td><td>AND bit a bit — "apaga" bits.</td><td class="reg dim">and al, 0x0F<span class="tag">section .text</span><span class="expl">apaga todos los bits de al menos los 4 más bajos (máscara)</span></td></tr>
+        <tr><td class="reg">or dst, src</td><td class="reg">orr dst, src1, src2</td><td>OR bit a bit — "prende" bits.</td><td class="reg dim">or al, 0x20<span class="tag">section .text</span><span class="expl">prende el bit 0x20 de al, deja los demás igual</span></td></tr>
+        <tr><td class="reg">xor dst, src</td><td class="reg">eor dst, src1, src2</td><td>XOR bit a bit — invierte (toggle).</td><td class="reg dim">xor al, 0x20 &nbsp;/&nbsp; eor r0, r0, #0x20<span class="tag">dentro del loop de conversión</span><span class="expl">invierte el bit 0x20 — pasa la letra de mayúscula a minúscula o viceversa</span></td></tr>
+        <tr><td class="reg">not reg</td><td class="reg">mvn dst, src</td><td>Invierte TODOS los bits.</td><td class="reg dim">not al &nbsp;/&nbsp; mvn r0, r1<span class="tag">section .text</span><span class="expl">cada bit en 0 pasa a 1 y cada bit en 1 pasa a 0</span></td></tr>
+        <tr><td class="reg">shl dst, N</td><td class="reg">lsl dst, src, #N</td><td>Shift lógico izquierda — multiplica por 2^N.</td><td class="reg dim">shl rax, 2 &nbsp;/&nbsp; lsl r0, r1, #2<span class="tag">section .text</span><span class="expl">multiplica el valor por 4 (2 elevado a 2)</span></td></tr>
+        <tr><td class="reg">shr dst, N</td><td class="reg">lsr dst, src, #N</td><td>Shift lógico derecha — divide por 2^N sin signo.</td><td class="reg dim">shr rax, 2 &nbsp;/&nbsp; lsr r0, r1, #2<span class="tag">section .text</span><span class="expl">divide el valor por 4, tratándolo como sin signo</span></td></tr>
+        <tr><td class="reg">sar dst, N</td><td class="reg">asr dst, src, #N</td><td>Shift aritmético derecha — preserva negativos.</td><td class="reg dim">sar rax, 2 &nbsp;/&nbsp; asr r0, r1, #2<span class="tag">cuando el valor puede ser negativo</span><span class="expl">divide por 4 conservando el signo del número</span></td></tr>
+        <tr><td class="reg">rol dst, N</td><td class="reg">(se compone con lsl+orr)</td><td>Rota bits a la izquierda.</td><td class="reg dim">rol al, 3<span class="tag">section .text</span><span class="expl">los 3 bits más altos "dan la vuelta" y reaparecen al final</span></td></tr>
+        <tr><td class="reg">ror dst, N</td><td class="reg">ror dst, src, #N</td><td>Rota bits a la derecha.</td><td class="reg dim">ror al, 3 &nbsp;/&nbsp; ror r0, r1, #3<span class="tag">section .text</span><span class="expl">los 3 bits más bajos "dan la vuelta" y reaparecen al principio</span></td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- COMPARACION -->
+  <section class="block" id="sec-comparacion">
+    <div class="sec-title">Comparación</div>
+    <div class="card">
+      <table>
+        <tr><th>NASM (x86-64)</th><th>GAS (ARM AA32)</th><th>Qué hace (general)</th><th>Plantilla + qué hace ESE ejemplo</th></tr>
+        <tr><td class="reg">cmp a, b</td><td class="reg">cmp a, b</td><td>Calcula a−b solo para actualizar flags.</td><td class="reg dim">cmp al, 0x41<span class="tag">justo antes del salto</span><span class="expl">compara al contra 0x41 ('A'), sin modificar al</span></td></tr>
+        <tr><td class="reg">test a, b</td><td class="reg">tst a, b</td><td>Calcula a AND b, solo para ver si da cero.</td><td class="reg dim">test al, al<span class="tag">antes de un je/jz</span><span class="expl">revisa si al es cero, sin modificarlo</span></td></tr>
+        <tr><td class="reg">—</td><td class="reg">cmn a, b</td><td>Calcula a+b solo para actualizar flags.</td><td class="reg dim">cmn r0, #5<span class="tag">section .text</span><span class="expl">compara r0 contra −5, sin modificar r0</span></td></tr>
+        <tr><td class="reg">—</td><td class="reg">teq a, b</td><td>Calcula a XOR b, para ver igualdad exacta.</td><td class="reg dim">teq r0, r1<span class="tag">antes de un beq</span><span class="expl">revisa si r0 y r1 son exactamente el mismo valor</span></td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- SALTOS -->
+  <section class="block" id="sec-saltos">
+    <div class="sec-title">Saltos y ramas <small>incondicionales, condicionales, y con signo/sin signo</small></div>
+    <div class="two-col">
+      <div class="card">
+        <div class="colhead">NASM (x86-64)</div>
+        <table>
+          <tr><th>Instr.</th><th>Salta si...</th><th>Plantilla + qué hace</th></tr>
+          <tr><td class="reg">jmp</td><td>siempre</td><td class="reg dim">jmp .fin<span class="expl">salta a .fin sin condición</span></td></tr>
+          <tr><td class="reg">je / jz</td><td>igual / cero</td><td class="reg dim">cmp al,'a'<br>je .fin<span class="expl">salta si al es exactamente 'a'</span></td></tr>
+          <tr><td class="reg">jne / jnz</td><td>distinto</td><td class="reg dim">cmp al,'a'<br>jne .fin<span class="expl">salta si al NO es 'a'</span></td></tr>
+          <tr><td class="reg">jl / jnge</td><td>menor <span class="tag">con signo</span></td><td class="reg dim">cmp al,LO<br>jl .fin<span class="expl">salta si al es menor que LO</span></td></tr>
+          <tr><td class="reg">jg / jnle</td><td>mayor <span class="tag">con signo</span></td><td class="reg dim">cmp al,HI<br>jg .fin<span class="expl">salta si al es mayor que HI</span></td></tr>
+          <tr><td class="reg">jle / jng</td><td>menor o igual</td><td class="reg dim">cmp al,HI<br>jle .fin<span class="expl">salta si al ≤ HI</span></td></tr>
+          <tr><td class="reg">jge / jnl</td><td>mayor o igual</td><td class="reg dim">cmp al,LO<br>jge .fin<span class="expl">salta si al ≥ LO</span></td></tr>
+          <tr><td class="reg">jb / jc</td><td>menor <span class="tag">sin signo</span></td><td class="reg dim">cmp rbx,rcx<br>jb .fin<span class="expl">salta si rbx &lt; rcx (índice aún dentro del rango)</span></td></tr>
+          <tr><td class="reg">ja</td><td>mayor <span class="tag">sin signo</span></td><td class="reg dim">cmp rbx,rcx<br>ja .fin<span class="expl">salta si rbx &gt; rcx</span></td></tr>
+          <tr><td class="reg">jbe</td><td>menor o igual</td><td class="reg dim">cmp rbx,rcx<br>jbe .fin<span class="expl">salta si rbx ≤ rcx</span></td></tr>
+          <tr><td class="reg">jae</td><td>mayor o igual</td><td class="reg dim">cmp rbx,rcx<br>jae .fin<span class="expl">salta si rbx ≥ rcx (fin del loop)</span></td></tr>
+          <tr><td class="reg">call</td><td>siempre + guarda retorno</td><td class="reg dim">call suma<span class="expl">salta a "suma" y recuerda a dónde volver</span></td></tr>
+          <tr><td class="reg">ret</td><td>vuelve del call</td><td class="reg dim">ret<span class="tag">última línea de la función</span><span class="expl">vuelve justo después de donde se hizo el call</span></td></tr>
+          <tr><td class="reg">loop</td><td>rcx-- y salta si != 0</td><td class="reg dim">mov rcx,10<br>.rep:<br>&nbsp;&nbsp;loop .rep<span class="expl">repite el bloque 10 veces usando rcx como contador</span></td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="colhead">GAS (ARM AA32)</div>
+        <table>
+          <tr><th>Instr.</th><th>Salta si...</th><th>Plantilla + qué hace</th></tr>
+          <tr><td class="reg">b</td><td>siempre</td><td class="reg dim">b .fin<span class="expl">salta a .fin sin condición</span></td></tr>
+          <tr><td class="reg">beq</td><td>igual / Z=1</td><td class="reg dim">cmp r0,#'a'<br>beq .fin<span class="expl">salta si r0 es exactamente 'a'</span></td></tr>
+          <tr><td class="reg">bne</td><td>distinto</td><td class="reg dim">cmp r0,#'a'<br>bne .fin<span class="expl">salta si r0 NO es 'a'</span></td></tr>
+          <tr><td class="reg">blt</td><td>menor <span class="tag">con signo</span></td><td class="reg dim">cmp r0,#LO<br>blt .fin<span class="expl">salta si r0 es menor que LO</span></td></tr>
+          <tr><td class="reg">bgt</td><td>mayor <span class="tag">con signo</span></td><td class="reg dim">cmp r0,#HI<br>bgt .fin<span class="expl">salta si r0 es mayor que HI</span></td></tr>
+          <tr><td class="reg">ble</td><td>menor o igual</td><td class="reg dim">cmp r0,#HI<br>ble .fin<span class="expl">salta si r0 ≤ HI</span></td></tr>
+          <tr><td class="reg">bge</td><td>mayor o igual</td><td class="reg dim">cmp r0,#LO<br>bge .fin<span class="expl">salta si r0 ≥ LO</span></td></tr>
+          <tr><td class="reg">blo</td><td>menor <span class="tag">sin signo</span></td><td class="reg dim">cmp r5,r4<br>blo .fin<span class="expl">salta si r5 &lt; r4 (aún dentro del rango)</span></td></tr>
+          <tr><td class="reg">bhi</td><td>mayor <span class="tag">sin signo</span></td><td class="reg dim">cmp r5,r4<br>bhi .fin<span class="expl">salta si r5 &gt; r4</span></td></tr>
+          <tr><td class="reg">bls</td><td>menor o igual</td><td class="reg dim">cmp r5,r4<br>bls .fin<span class="expl">salta si r5 ≤ r4</span></td></tr>
+          <tr><td class="reg">bhs</td><td>mayor o igual</td><td class="reg dim">cmp r5,r4<br>bhs .fin<span class="expl">salta si r5 ≥ r4 (fin del loop)</span></td></tr>
+          <tr><td class="reg">bl</td><td>siempre + guarda en LR</td><td class="reg dim">bl suma<span class="expl">salta a "suma" y guarda el retorno en el registro LR</span></td></tr>
+          <tr><td class="reg">bx lr</td><td>vuelve del bl</td><td class="reg dim">bx lr<span class="tag">última línea de la función</span><span class="expl">vuelve a la dirección guardada en LR</span></td></tr>
+          <tr><td class="reg">cualquiera+sufijo</td><td>ej: addeqs</td><td class="reg dim">cmp r0,r4<br>addeqs r1,r2,r3<span class="expl">solo si r0==r4: suma r2+r3 en r1 y actualiza flags</span></td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- SYSCALLS Y CONTROL -->
+  <section class="block" id="sec-syscall-control">
+    <div class="sec-title">Llamadas al sistema y control de flujo</div>
+    <div class="card">
+      <table>
+        <tr><th>NASM (x86-64)</th><th>GAS (ARM AA32)</th><th>Qué hace (general)</th><th>Plantilla + qué hace ESE ejemplo</th></tr>
+        <tr><td class="reg">syscall</td><td class="reg">svc 0</td><td>Cede el control al kernel.</td><td class="reg dim">mov rax,1<br>mov rdi,1<br>...<br>syscall<span class="tag">args ya cargados antes</span><span class="expl">le pide al kernel que ejecute write, usando rax/rdi/rsi/rdx como argumentos</span></td></tr>
+        <tr><td class="reg">int 0x80 <span class="tag">legacy</span></td><td class="reg">(svc 0 es el equivalente ARM)</td><td>Forma antigua de invocar syscalls en x86 32-bit.</td><td class="reg dim">int 0x80<span class="tag">solo código de 32 bits legacy</span><span class="expl">pide al kernel la syscall número rax, a la vieja usanza</span></td></tr>
+        <tr><td class="reg">nop</td><td class="reg">nop</td><td>No hace nada.</td><td class="reg dim">nop<span class="tag">en cualquier punto</span><span class="expl">ocupa un ciclo de CPU sin efecto — usado para alinear código</span></td></tr>
+        <tr><td class="reg">hlt</td><td class="reg">(no aplica en user-space)</td><td>Detiene el CPU (modo privilegiado).</td><td class="reg dim">hlt<span class="tag">no usar en programas normales</span><span class="expl">detendría el CPU — en user-space da error de permisos</span></td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- =========== NUEVO: CONVENCION DE LLAMADA =========== -->
+  <section class="block" id="sec-convencion">
+    <div class="sec-title">Convención de llamada — cómo escribir tus propias subrutinas <small>la causa #1 de bugs raros en programas con "call"/"bl"</small></div>
+    <div class="card">
+      <p style="font-size:11.8px; line-height:1.85; color:var(--text); margin:0 0 12px;">
+        Cuando escribís tu propia función (no una syscall), vos decidís qué registros usar — pero el CPU
+        no "limpia" ni "guarda" nada solo. Si una función A llama a una función B, y B usa un registro que
+        A todavía necesitaba, ese valor se pierde en silencio: no hay error de ensamblado ni crash, el
+        programa simplemente calcula mal. Suele ser el bug más difícil de encontrar a simple vista.
+      </p>
+      <table>
+        <tr><th>Concepto</th><th>x86-64 (SysV)</th><th>ARM AA32 (AAPCS)</th></tr>
+        <tr><td class="reg">Argumentos (en orden)</td><td class="reg dim">rdi, rsi, rdx, rcx, r8, r9</td><td class="reg dim">r0, r1, r2, r3</td></tr>
+        <tr><td class="reg">Valor de retorno</td><td class="reg dim">rax</td><td class="reg dim">r0</td></tr>
+        <tr><td class="reg">Caller-saved <span class="tag">se pueden perder en cualquier call</span></td><td class="reg dim">rax, rcx, rdx, rsi, rdi, r8-r11</td><td class="reg dim">r0-r3, r12</td></tr>
+        <tr><td class="reg">Callee-saved <span class="tag">sobreviven un call si la función los respeta</span></td><td class="reg dim">rbx, rbp, r12-r15</td><td class="reg dim">r4-r11</td></tr>
+        <tr><td class="reg">Dirección de retorno</td><td class="reg dim">queda en la pila (push automático de "call")</td><td class="reg dim">queda en lr — hacé push/pop de lr si tu función llama a otra</td></tr>
+      </table>
+      <p style="font-size:11.5px; line-height:1.8; color:var(--amber); margin-top:12px; font-style:italic;">
+        → Regla de oro: si un valor tiene que sobrevivir un "call"/"bl", o lo movés a un registro
+        callee-saved (r12-r15 / r4-r11) antes de llamar, o lo guardás vos mismo con push antes del call
+        y lo recuperás con pop después. Nunca asumas que un registro caller-saved (rax/rdi/rsi/rdx/rcx
+        en x86, r0-r3 en ARM) va a seguir teniendo lo mismo después de un call.
+      </p>
+    </div>
+  </section>
+
+  <!-- =========== NUEVO: TABLA DE SYSCALLS EXPANDIDA =========== -->
+  <section class="block" id="sec-syscalls-tabla">
+    <div class="sec-title">Syscalls de Linux más comunes <small>número en rax (x86-64) y r7 (ARM), argumentos y qué hace</small></div>
+    <div class="card">
+      <table>
+        <tr><th>Syscall</th><th>rax (x86-64)</th><th>r7 (ARM)</th><th>Argumentos</th><th>Qué hace</th></tr>
+        <tr><td class="reg">read</td><td class="dim">0</td><td class="dim">3</td><td class="dim">fd, buf, count</td><td>Lee bytes desde un file descriptor hacia un buffer.</td></tr>
+        <tr><td class="reg">write</td><td class="dim">1</td><td class="dim">4</td><td class="dim">fd, buf, count</td><td>Escribe bytes desde un buffer hacia un file descriptor.</td></tr>
+        <tr><td class="reg">open</td><td class="dim">2</td><td class="dim">5</td><td class="dim">path, flags, mode</td><td>Abre (o crea) un archivo, devuelve un file descriptor en rax/r0.</td></tr>
+        <tr><td class="reg">close</td><td class="dim">3</td><td class="dim">6</td><td class="dim">fd</td><td>Cierra un file descriptor previamente abierto.</td></tr>
+        <tr><td class="reg">lseek</td><td class="dim">8</td><td class="dim">19</td><td class="dim">fd, offset, whence</td><td>Mueve el puntero de lectura/escritura dentro de un archivo abierto.</td></tr>
+        <tr><td class="reg">mmap</td><td class="dim">9</td><td class="dim">192</td><td class="dim">addr, len, prot, flags, fd, offset</td><td>Mapea memoria (archivo o anónima) al espacio de direcciones del proceso.</td></tr>
+        <tr><td class="reg">brk</td><td class="dim">12</td><td class="dim">45</td><td class="dim">addr</td><td>Ajusta el tamaño del "heap" del programa (usado internamente por malloc-like allocators).</td></tr>
+        <tr><td class="reg">rt_sigaction</td><td class="dim">13</td><td class="dim">174</td><td class="dim">signum, act, oldact</td><td>Define qué hacer cuando el proceso recibe una señal (ej. SIGINT).</td></tr>
+        <tr><td class="reg">access</td><td class="dim">21</td><td class="dim">33</td><td class="dim">path, mode</td><td>Verifica permisos de acceso a un archivo sin abrirlo.</td></tr>
+        <tr><td class="reg">fork</td><td class="dim">57</td><td class="dim">2</td><td class="dim">—</td><td>Duplica el proceso actual — crea un proceso hijo casi idéntico.</td></tr>
+        <tr><td class="reg">execve</td><td class="dim">59</td><td class="dim">11</td><td class="dim">path, argv, envp</td><td>Reemplaza el proceso actual por un nuevo programa.</td></tr>
+        <tr><td class="reg">exit</td><td class="dim">60</td><td class="dim">1</td><td class="dim">código</td><td>Termina el proceso actual (solo el hilo/proceso que llama).</td></tr>
+        <tr><td class="reg">exit_group</td><td class="dim">231</td><td class="dim">248</td><td class="dim">código</td><td>Termina TODOS los hilos del proceso, no solo el actual (la que usa libc por defecto al salir de main).</td></tr>
+        <tr><td class="reg">wait4</td><td class="dim">61</td><td class="dim">114</td><td class="dim">pid, status, options, rusage</td><td>Espera a que un proceso hijo termine (usado junto a fork).</td></tr>
+        <tr><td class="reg">kill</td><td class="dim">62</td><td class="dim">37</td><td class="dim">pid, signal</td><td>Envía una señal a otro proceso (ej. para terminarlo).</td></tr>
+        <tr><td class="reg">getpid</td><td class="dim">39</td><td class="dim">20</td><td class="dim">—</td><td>Devuelve el PID (identificador) del proceso actual.</td></tr>
+        <tr><td class="reg">nanosleep</td><td class="dim">35</td><td class="dim">162</td><td class="dim">req, rem</td><td>Pausa el proceso por un tiempo especificado (en segundos+nanosegundos).</td></tr>
+        <tr><td class="reg">stat / fstat</td><td class="dim">4 / 5</td><td class="dim">106 / 108</td><td class="dim">path/fd, statbuf</td><td>Obtiene metadatos de un archivo (tamaño, permisos, fechas...).</td></tr>
+        <tr><td class="reg">mkdir</td><td class="dim">83</td><td class="dim">39</td><td class="dim">path, mode</td><td>Crea un nuevo directorio.</td></tr>
+        <tr><td class="reg">unlink</td><td class="dim">87</td><td class="dim">10</td><td class="dim">path</td><td>Borra un archivo (elimina su entrada del sistema de archivos).</td></tr>
+      </table>
+      <p style="font-size:11px; color:var(--text-dim); margin-top:10px;">
+        fd: 0 = stdin, 1 = stdout, 2 = stderr &nbsp;·&nbsp; los números de ARM corresponden a la tabla clásica
+        <span class="cm">int 0x80</span>/EABI de 32 bits, reutilizada por <span class="cm">svc 0</span> &nbsp;·&nbsp;
+        lista completa siempre en <span class="cm">/usr/include/asm/unistd_64.h</span> (x86-64) o
+        <span class="cm">/usr/include/asm-generic/unistd.h</span> (ARM EABI).
+      </p>
+    </div>
+  </section>
+
+
+  <!-- =========== NUEVO: STEP BY STEP =========== -->
+  <section class="block" id="sec-pasos">
+    <div class="sec-title">Cómo armar tu programa de ensamblador, paso a paso <small>de la idea al ejecutable</small></div>
+    <div class="card">
+      <table>
+        <tr><th>#</th><th>Paso</th><th>Qué hacer</th></tr>
+        <tr><td class="reg">1</td><td class="reg">Entendé el problema</td><td>Antes de escribir una sola línea: ¿qué entra?, ¿qué sale?, ¿qué casos borde existen (vacío, límite, inválido)? Dibujá el diagrama de flujo — es literalmente parte de la entrega.</td></tr>
+        <tr><td class="reg">2</td><td class="reg">Definí tus secciones</td><td><code>.data</code> para prompts y constantes ya conocidas (equ), <code>.bss</code> para buffers de entrada aún vacíos, <code>.text</code> para toda la lógica.</td></tr>
+        <tr><td class="reg">3</td><td class="reg">Imprimí el prompt</td><td>syscall write con el mensaje que le pide el dato al usuario. Sin esto, el programa "se cuelga" esperando input sin avisar nada.</td></tr>
+        <tr><td class="reg">4</td><td class="reg">Leé el input</td><td>syscall read hacia tu buffer. <b>Guardá el valor que devuelve</b> (la cantidad real de bytes leídos) — nunca asumas que llenó el buffer completo.</td></tr>
+        <tr><td class="reg">5</td><td class="reg">Validá ANTES de procesar</td><td>Si hay caracteres inválidos, chequealo primero y salí con el mensaje de error. Procesar datos inválidos "a medias" es la fuente de bugs más común.</td></tr>
+        <tr><td class="reg">6</td><td class="reg">Procesá con un loop</td><td>índice en 0, límite = longitud real leída, condición de corte al principio del loop (cmp+jge/bge), cuerpo que opera con <code>[base+índice]</code>, incremento al final.</td></tr>
+        <tr><td class="reg">7</td><td class="reg">Armá la salida</td><td>syscall write usando la <b>longitud real</b> del resultado — no un tamaño fijo copiado de otra parte del código (ese fue el bug de copy-paste que vimos en v4).</td></tr>
+        <tr><td class="reg">8</td><td class="reg">Salí limpio</td><td>syscall exit con código 0 siempre al final, para que el shell sepa que terminó bien.</td></tr>
+        <tr><td class="reg">9</td><td class="reg">Ensamblá y enlazá</td><td>nasm/as para generar el .o, ld para generar el ejecutable — o mejor, escribí el Makefile una vez y corré <code>make</code> de ahí en más.</td></tr>
+        <tr><td class="reg">10</td><td class="reg">Probá casos límite</td><td>String vacío, string justo al límite del buffer (100 chars), solo caracteres inválidos, mezcla de mayúsculas/minúsculas/símbolos/espacios. Si pasa esos, probablemente esté bien.</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- =========== NUEVO: QUE NECESITAS PARA ARMAR UN .ASM =========== -->
+  <section class="block" id="sec-esqueleto">
+    <div class="sec-title">Qué necesitás para armar un .asm desde cero <small>el esqueleto narrado, NASM y GAS en paralelo</small></div>
+    <div class="card">
+      <p style="font-size:11.8px; line-height:1.85; color:var(--text); margin:0 0 12px;">
+        Todo archivo de ensamblador se arma siguiendo el mismo orden de ideas, sin importar si es NASM
+        o GAS. Pensalo como una narración: primero preparás los "muebles" (datos), después el "espacio
+        vacío" donde vas a trabajar, y recién al final escribís las acciones.
+      </p>
+      <table>
+        <tr><th>#</th><th>Qué vas narrando</th><th>NASM</th><th>GAS</th></tr>
+        <tr>
+          <td class="reg">1</td>
+          <td>Iniciamos declarando las variables y textos que YA conocemos de antemano (prompts, constantes) con la sección de datos inicializados.</td>
+          <td class="reg dim">section .data<br>msg: db "Ingrese: ", 0</td>
+          <td class="reg dim">.section .data<br>msg: .asciz "Ingrese: "</td>
+        </tr>
+        <tr>
+          <td class="reg">2</td>
+          <td>Después reservamos el espacio VACÍO donde va a caer lo que el usuario escriba — todavía no existe, solo apartamos el lugar.</td>
+          <td class="reg dim">section .bss<br>buffer: resb 101</td>
+          <td class="reg dim">.section .bss<br>.lcomm buffer, 101</td>
+        </tr>
+        <tr>
+          <td class="reg">3</td>
+          <td>Ahora sí, la sección de código — acá vive toda la lógica. Le decimos al linker cuál es el punto de arranque.</td>
+          <td class="reg dim">section .text<br>global _start<br>_start:</td>
+          <td class="reg dim">.section .text<br>.global _start<br>_start:</td>
+        </tr>
+        <tr>
+          <td class="reg">4</td>
+          <td>Imprimimos el prompt para que el usuario sepa qué hacer — syscall write.</td>
+          <td class="reg dim">mov rax,1 / mov rdi,1<br>mov rsi,msg / mov rdx,len<br>syscall</td>
+          <td class="reg dim">mov r7,#4 / mov r0,#1<br>ldr r1,=msg / mov r2,#len<br>svc 0</td>
+        </tr>
+        <tr>
+          <td class="reg">5</td>
+          <td>Leemos lo que el usuario escribió hacia el buffer que reservamos — syscall read. Guardamos cuánto leyó de verdad.</td>
+          <td class="reg dim">mov rax,0 / mov rdi,0<br>mov rsi,buffer / mov rdx,101<br>syscall</td>
+          <td class="reg dim">mov r7,#3 / mov r0,#0<br>ldr r1,=buffer / mov r2,#101<br>svc 0</td>
+        </tr>
+        <tr>
+          <td class="reg">6</td>
+          <td>Procesamos: loop con índice, comparación de rango, la lógica puntual de tu problema.</td>
+          <td class="reg dim">.loop:<br>&nbsp;&nbsp;cmp rbx,rcx<br>&nbsp;&nbsp;jge .fin<br>&nbsp;&nbsp;...</td>
+          <td class="reg dim">.loop:<br>&nbsp;&nbsp;cmp r5,r4<br>&nbsp;&nbsp;bge .fin<br>&nbsp;&nbsp;...</td>
+        </tr>
+        <tr>
+          <td class="reg">7</td>
+          <td>Devolvemos el control al sistema operativo con un código de salida limpio.</td>
+          <td class="reg dim">mov rax,60<br>xor rdi,rdi<br>syscall</td>
+          <td class="reg dim">mov r7,#1<br>mov r0,#0<br>svc 0</td>
+        </tr>
+      </table>
+      <p style="font-size:11.5px; line-height:1.8; color:var(--text-dim); margin-top:12px; font-style:italic;">
+        Ese orden (.data → .bss → .text: prompt → read → proceso → write → exit) es prácticamente
+        el 90% de cualquier programa chico que vas a escribir en este curso. Una vez que lo interiorizás,
+        armar un .asm nuevo es más "rellenar el molde" que empezar de cero.
+      </p>
+    </div>
+  </section>
+
+  <!-- =========== NUEVO: TABLA ASCII =========== -->
+  <section class="block" id="sec-ascii">
+    <div class="sec-title">Tabla ASCII rápida <small>los rangos que más se usan para validar/transformar texto</small></div>
+    <div class="card">
+      <table>
+        <tr><th>Rango / carácter</th><th>Hex</th><th>Decimal</th><th>Para qué sirve</th></tr>
+        <tr><td class="reg">'0'-'9'</td><td class="reg dim">0x30-0x39</td><td class="dim">48-57</td><td>Dígitos numéricos — restar 0x30 (o '0') convierte el carácter en su valor entero.</td></tr>
+        <tr><td class="reg">'A'-'Z'</td><td class="reg dim">0x41-0x5A</td><td class="dim">65-90</td><td>Letras mayúsculas.</td></tr>
+        <tr><td class="reg">'a'-'z'</td><td class="reg dim">0x61-0x7A</td><td class="dim">97-122</td><td>Letras minúsculas.</td></tr>
+        <tr><td class="reg">Espacio</td><td class="reg dim">0x20</td><td class="dim">32</td><td>Carácter de espacio en blanco.</td></tr>
+        <tr><td class="reg">'\n'</td><td class="reg dim">0x0A</td><td class="dim">10</td><td>Salto de línea — típicamente lo que devuelve "read" al final del input.</td></tr>
+        <tr><td class="reg">'\0'</td><td class="reg dim">0x00</td><td class="dim">0</td><td>Terminador nulo — usado en .asciz y para marcar el final de un string.</td></tr>
+        <tr><td class="reg">Diferencia mayús./minús.</td><td class="reg dim">0x20</td><td class="dim">32</td><td>Toda letra minúscula = su mayúscula + 0x20. Por eso "xor al, 0x20" / "eor r0, r0, #0x20" alterna entre las dos.</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- =========== NUEVO: CODIGOS COMUNES / SNIPPETS =========== -->
+  <section class="block" id="sec-snippets">
+    <div class="sec-title">Códigos comunes <small>bloques listos para copiar y pegar en tus proyectos</small></div>
+
+    <div class="two-col" style="margin-bottom:14px;">
+      <div class="card">
+        <div class="colhead">Esqueleto mínimo — NASM x86-64</div>
+        <pre style="white-space:pre-wrap; font-size:11px; line-height:1.6; color:var(--green); margin:0;">section .data
+    prompt: db "Ingrese algo: "
+    prompt_len: equ $ - prompt
+
+section .bss
+    buffer: resb 101
+
+section .text
+    global _start
+_start:
+    mov rax, 1
+    mov rdi, 1
+    mov rsi, prompt
+    mov rdx, prompt_len
+    syscall
+
+    mov rax, 0
+    mov rdi, 0
+    mov rsi, buffer
+    mov rdx, 101
+    syscall
+
+    mov rax, 60
+    xor rdi, rdi
+    syscall</pre>
+      </div>
+      <div class="card">
+        <div class="colhead">Esqueleto mínimo — GAS ARM AA32</div>
+        <pre style="white-space:pre-wrap; font-size:11px; line-height:1.6; color:var(--green); margin:0;">.section .data
+prompt:
+    .ascii "Ingrese algo: "
+    .equ prompt_len, . - prompt
+
+.section .bss
+    .lcomm buffer, 101
+
+.section .text
+.global _start
+_start:
+    mov r7, #4
+    mov r0, #1
+    ldr r1, =prompt
+    ldr r2, =prompt_len
+    svc 0
+
+    mov r7, #3
+    mov r0, #0
+    ldr r1, =buffer
+    mov r2, #101
+    svc 0
+
+    mov r7, #1
+    mov r0, #0
+    svc 0</pre>
+      </div>
+    </div>
+
+    <div class="two-col" style="margin-bottom:14px;">
+      <div class="card">
+        <div class="colhead">Loop recorriendo un buffer — NASM</div>
+        <pre style="white-space:pre-wrap; font-size:11px; line-height:1.6; color:var(--green); margin:0;">mov rcx, rax      ; longitud (de un read previo)
+xor rbx, rbx      ; indice = 0
+
+.loop:
+    cmp rbx, rcx
+    jge .fin
+
+    movzx eax, byte [buffer + rbx]
+    ; ... hacer algo con al ...
+
+    inc rbx
+    jmp .loop
+.fin:</pre>
+      </div>
+      <div class="card">
+        <div class="colhead">Loop recorriendo un buffer — GAS ARM</div>
+        <pre style="white-space:pre-wrap; font-size:11px; line-height:1.6; color:var(--green); margin:0;">mov r4, r0        @ longitud (de un read previo)
+mov r5, #0        @ indice = 0
+ldr r6, =buffer
+
+.loop:
+    cmp r5, r4
+    bge .fin
+
+    ldrb r0, [r6, r5]
+    @ ... hacer algo con r0 ...
+
+    add r5, r5, #1
+    b .loop
+.fin:</pre>
+      </div>
+    </div>
+
+    <div class="two-col" style="margin-bottom:14px;">
+      <div class="card">
+        <div class="colhead">Chequear rango (¿es letra?) — NASM</div>
+        <pre style="white-space:pre-wrap; font-size:11px; line-height:1.6; color:var(--green); margin:0;">cmp al, 0x41
+jl .no_es_mayus
+cmp al, 0x5A
+jg .no_es_mayus
+    ; es mayuscula, hacer algo
+.no_es_mayus:</pre>
+      </div>
+      <div class="card">
+        <div class="colhead">Chequear rango (¿es letra?) — GAS ARM</div>
+        <pre style="white-space:pre-wrap; font-size:11px; line-height:1.6; color:var(--green); margin:0;">cmp r0, #0x41
+blt .no_es_mayus
+cmp r0, #0x5A
+bgt .no_es_mayus
+    @ es mayuscula, hacer algo
+.no_es_mayus:</pre>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="card">
+        <div class="colhead">Toggle mayus/minus con XOR — NASM</div>
+        <pre style="white-space:pre-wrap; font-size:11px; line-height:1.6; color:var(--green); margin:0;">xor al, 0x20
+mov [buffer + rbx], al</pre>
+      </div>
+      <div class="card">
+        <div class="colhead">Toggle mayus/minus con XOR — GAS ARM</div>
+        <pre style="white-space:pre-wrap; font-size:11px; line-height:1.6; color:var(--green); margin:0;">eor r0, r0, #0x20
+strb r0, [r6, r5]</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========== NUEVO: BUILD / MAKEFILE =========== -->
+  <section class="block" id="sec-build">
+    <div class="sec-title">Ensamblar, enlazar y Makefile <small>de .asm/.s a ejecutable, a mano y automatizado</small></div>
+    <div class="two-col" style="margin-bottom:14px;">
+      <div class="card">
+        <div class="colhead">A mano — NASM x86-64</div>
+        <pre style="white-space:pre-wrap; font-size:11px; line-height:1.6; color:var(--green); margin:0;">nasm -f elf64 programa.asm -o programa.o
+ld programa.o -o programa
+./programa</pre>
+        <span class="expl" style="margin-top:8px;">-f elf64: formato de archivo objeto de 64 bits · ld enlaza el .o y genera el ejecutable final</span>
+      </div>
+      <div class="card">
+        <div class="colhead">A mano — GAS ARM AA32</div>
+        <pre style="white-space:pre-wrap; font-size:11px; line-height:1.6; color:var(--green); margin:0;">as programa.s -o programa.o
+ld programa.o -o programa
+./programa</pre>
+        <span class="expl" style="margin-top:8px;">en una Raspberry Pi (ARM nativo) no hace falta flag de arquitectura extra · cruzando desde x86 se necesita un toolchain arm-linux-gnueabihf</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="colhead">Makefile mínimo (mismo patrón para NASM o GAS, cambiando el paso de ensamblado)</div>
+      <pre style="white-space:pre-wrap; font-size:11px; line-height:1.6; color:var(--green); margin:0;">programa: programa.o
+	ld programa.o -o programa
+
+programa.o: programa.asm
+	nasm -f elf64 programa.asm -o programa.o
+
+clean:
+	rm -f programa.o programa
+
+.PHONY: clean</pre>
+      <span class="expl" style="margin-top:8px;">las líneas de comando de un Makefile empiezan con TAB, no con espacios — es el error más común al copiar/pegar esto</span>
+    </div>
+  </section>
+
+  <!-- =========== NUEVO: INFO IMPORTANTE =========== -->
+  <section class="block" id="sec-gotchas">
+    <div class="sec-title">Otra información importante <small>gotchas, debugging, y cosas que se te olvidan la primera vez</small></div>
+    <div class="two-col">
+      <div class="card">
+        <div class="colhead">Errores comunes</div>
+        <table>
+          <tr><td class="reg dim">Off-by-one en el loop</td><td>Usar <code>jg</code> en vez de <code>jge</code> (o viceversa) hace que proceses un carácter de más o de menos en los límites del rango.</td></tr>
+          <tr><td class="reg dim">Longitud fija en vez de real</td><td>Escribir el <code>write</code> final con un tamaño copiado de otra constante en vez de la longitud que devolvió <code>read</code>.</td></tr>
+          <tr><td class="reg dim">Rangos invertidos</td><td>Comparar <code>jl</code> cuando correspondía <code>jg</code> (o al revés) deja pasar caracteres que no debían, o descarta los que sí correspondían.</td></tr>
+          <tr><td class="reg dim">Falta un jmp</td><td>Olvidar el <code>jmp .next_char</code> después de procesar un caso hace que "caiga" al siguiente bloque y lo procese dos veces.</td></tr>
+          <tr><td class="reg dim">Suponer registros en 0</td><td>Los registros NO se limpian solos entre instrucciones ni entre syscalls — si necesitás un valor en 0, ponelo vos con <code>xor reg,reg</code>.</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="colhead">Debugging y verificación</div>
+        <table>
+          <tr><td class="reg dim">objdump -d ejecutable</td><td>Muestra el desensamblado real del binario — útil para confirmar que el ensamblador generó lo que creías.</td></tr>
+          <tr><td class="reg dim">gdb ejecutable</td><td>Depurador paso a paso. Comandos clave: <code>break _start</code>, <code>stepi</code> (un paso), <code>info registers</code> (ver todos los registros), <code>x/20xb $rsi</code> (ver memoria en hex).</td></tr>
+          <tr><td class="reg dim">echo $?</td><td>Después de correr tu programa, muestra el código de salida — confirmá que sea 0 si tu <code>exit</code> está bien.</td></tr>
+          <tr><td class="reg dim">Segmentation fault</td><td>Casi siempre es acceder a una dirección inválida — revisá que el registro que usás como base de memoria realmente apunte a algo válido antes del acceso.</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px;">
+      <div class="colhead">Checklist antes de entregar</div>
+      <table>
+        <tr><td class="reg dim">☐</td><td>El programa maneja el caso de string vacío sin crashear</td></tr>
+        <tr><td class="reg dim">☐</td><td>El write final usa la longitud REAL, no un número fijo</td></tr>
+        <tr><td class="reg dim">☐</td><td>Los caracteres no válidos según el enunciado se dejan intactos (no se procesan ni se rompen)</td></tr>
+        <tr><td class="reg dim">☐</td><td>El Makefile compila desde cero con <code>make clean && make</code> sin errores</td></tr>
+        <tr><td class="reg dim">☐</td><td>Probaste el ejecutable a mano, no solo leíste el código</td></tr>
+        <tr><td class="reg dim">☐</td><td>La estructura de carpetas coincide exactamente con la que pide el enunciado (nombres, mayúsculas, subcarpetas)</td></tr>
+      </table>
+    </div>
+  </section>
+  <footer>
+    <span>IC-3101 Arquitectura de Computadoras · build TERMINAL</span>
+    <span>root@ic3101:~$ █ EOF — fin de transmisión</span>
+  </footer>
+
+  </div>
+</div>
+</div>
+</div>
+</body>
+</html>
