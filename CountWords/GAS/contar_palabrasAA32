@@ -1,0 +1,289 @@
+@ Julian Solozarno y Abril Gonzalez - Tarea Corta (Parte 1)
+
+
+
+
+.global _start                     
+
+.data
+msg_resultado:
+    .ascii "Palabras: "
+    .equ msg_resultado_len, . - msg_resultado
+
+newline:
+    .byte 10                        @ salto de linea
+
+msg_prompt:
+    .ascii "Ingrese la ruta del archivo: "
+    .equ msg_prompt_len, . - msg_prompt
+
+msg_uso:
+    .ascii "Error: no se indico la ruta del archivo.\n"
+    .equ msg_uso_len, . - msg_uso
+
+msg_err_abrir:
+    .ascii "Error: no se pudo abrir el archivo.\n"
+    .equ msg_err_abrir_len, . - msg_err_abrir
+
+msg_err_leer:
+    .ascii "Error: fallo al leer el archivo.\n"
+    .equ msg_err_leer_len, . - msg_err_leer
+
+msg_err_largo:
+    .ascii "Error: la entrada excede el limite de 1024 caracteres.\n"
+    .equ msg_err_largo_len, . - msg_err_largo
+
+
+.bss
+
+buffer:
+    .space 1025
+    .equ buffer_len, . - buffer     
+
+numbuf:
+    .space 21                      
+pathbuf:
+    .space 256                      @
+
+.text
+
+
+contar_palabras:
+    mov r2, #0                      @ words = 0
+    mov r3, #0                     
+
+siguiente:
+    cmp r1, #0                     
+    beq retorna                    
+
+    ldrb r12, [r0], #1             
+                                   
+    sub r1, r1, #1                 
+
+    @separador y comparados 
+    
+    cmp r12, #32                    @ 0 a 32
+    bls separador
+    cmp r12, #47                    @ 33 a 47
+    bls separador
+    cmp r12, #57                    @ 48 a 57 (numeros)
+    bls parte_palabra
+    cmp r12, #64                    @ 58 a 64
+    bls separador
+    cmp r12, #90                    @ 65 a 90 (mayusculas)
+    bls parte_palabra
+    cmp r12, #96                    @ 91 a 96
+    bls separador
+    cmp r12, #122                   @ 97 a 122 (minusculas)
+    bls parte_palabra
+    cmp r12, #126                   @ 123 a 126
+    bls separador
+    cmp r12, #127                  
+    beq separador
+                                    
+
+parte_palabra:
+    @ La letra es parte de una palabra.
+    cmp r3, #0
+    bne siguiente                   
+
+    add r2, r2, #1                  @ palabra nueva
+    mov r3, #1                      
+    b siguiente                    
+
+separador:
+    mov r3, #0                      
+    b siguiente                    
+
+retorna:
+    mov r0, r2                     
+    bx lr                           @ volver a quien llamo la funcion
+
+
+
+_start:
+    @ Obtener el nombre del archivo 
+    
+    ldr r0, [sp]                 
+    cmp r0, #2                      
+    blt pedir_ruta                 
+    ldr r0, [sp, #8]                
+    b abrir
+
+pedir_ruta:
+    @ Mostrar "Ingrese la ruta del archivo: "
+    mov r7, #4                      
+    mov r0, #1                    
+    ldr r1, =msg_prompt             
+    ldr r2, =msg_prompt_len        
+    svc #0
+
+    @ Leer lo que escriba la persona 
+    mov r7, #3                     
+    mov r0, #0                   
+    ldr r1, =pathbuf               
+    mov r2, #255                 
+    svc #0
+    cmp r0, #0                      
+    ble err_uso                     @ mostrar error
+
+ 
+    ldr r1, =pathbuf                
+    mov r2, #0                     
+    strb r2, [r1, r0]               @ poner un 0 al final de lo leido
+    mov r3, r1                      @ recorre el nombre letra por letra
+    mov r12, r0                     @ cuantas letras faltan por revisar
+    
+buscar_fin_linea:
+    cmp r12, #0
+    beq ruta_lista                 
+    ldrb r2, [r3]                  
+    cmp r2, #10                     @ es enter?
+    beq cortar
+    cmp r2, #13                     @ es enter?
+    beq cortar
+    add r3, r3, #1                  @ pasar a la siguiente letra
+    sub r12, r12, #1
+    b buscar_fin_linea
+    
+    
+cortar:
+    mov r2, #0
+    strb r2, [r3]                   @ cambiar el Enter por un 0
+    
+ruta_lista:
+    ldrb r2, [r1]                   
+    cmp r2, #0                 
+    beq err_uso                   
+    mov r0, r1                      
+
+abrir:                             
+    mov r7, #5                      
+    mov r1, #0                   
+    mov r2, #0                      
+    svc #0
+    cmp r0, #0                    
+    blt err_abrir                   
+    mov r5, r0                      @ guardar el identificador del archivo
+
+  
+    mov r4, #0                      @ letras leidas = 0
+    
+    
+leer:
+    ldr r2, =buffer_len             
+    subs r2, r2, r4                
+    beq fin_lectura                 
+    ldr r1, =buffer
+    add r1, r1, r4                
+    mov r7, #3                    
+    mov r0, r5                   
+    svc #0
+    cmp r0, #0
+    blt err_leer                   
+    beq fin_lectura                 @ se acabo el archivo
+    add r4, r4, r0                  @ sumar las letras que llegaron
+    b leer                          
+
+fin_lectura:
+   
+    mov r7, #6                     
+    mov r0, r5
+    svc #0
+
+   
+    ldr r1, =buffer_len
+    sub r1, r1, #1               
+    cmp r4, r1
+    bhi err_largo                  
+
+  
+    ldr r0, =buffer              
+    mov r1, r4                     
+    bl contar_palabras            
+
+    @convertir texto a numero
+    ldr r1, =numbuf
+    add r1, r1, #20                 @ empezar por el final del espacio
+    mov r8, #0                      @ cantidad de digitos = 0
+    
+convertir:
+    mov r2, #0                      @ r2 = resultado de la division
+    
+dividir:
+    cmp r0, #10
+    blo fin_dividir                 
+    sub r0, r0, #10               
+    add r2, r2, #1                
+    b dividir
+    
+fin_dividir:                       
+    add r0, r0, #48                
+                                    
+    sub r1, r1, #1                 
+    strb r0, [r1]                  
+    add r8, r8, #1               
+    mov r0, r2                     
+    cmp r0, #0
+    bne convertir                   
+    mov r6, r1                  
+
+    @mostrar palabras
+    mov r7, #4                      
+    mov r0, #1                   
+    ldr r1, =msg_resultado
+    ldr r2, =msg_resultado_len   
+    svc #0
+
+    @mostar num
+    mov r7, #4
+    mov r0, #1
+    mov r1, r6                      
+    mov r2, r8                     
+    svc #0
+
+    @ newline
+    
+    mov r7, #4
+    mov r0, #1
+    ldr r1, =newline
+    mov r2, #1
+    svc #0
+
+   
+    mov r7, #1                      
+    mov r0, #0                      
+    svc #0
+
+
+err_uso:                            
+    ldr r1, =msg_uso
+    ldr r2, =msg_uso_len           
+    b fin_error
+    
+    
+err_abrir:                          
+    ldr r1, =msg_err_abrir
+    ldr r2, =msg_err_abrir_len
+    b fin_error
+   
+err_leer:                           
+    ldr r1, =msg_err_leer
+    ldr r2, =msg_err_leer_len
+    b fin_error
+    
+    
+err_largo:                          
+    ldr r1, =msg_err_largo
+    ldr r2, =msg_err_largo_len
+    
+    
+fin_error:
+    mov r7, #4                      
+    mov r0, #2                      
+    svc #0
+    mov r7, #1                      
+    mov r0, #1                      @ codigo 1 = hubo un error
+    svc #0
+
+.ltorg                              @ aqui se guardan las direccion q usan las instrucciones "ldr"
